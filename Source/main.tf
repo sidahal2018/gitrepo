@@ -1,18 +1,12 @@
 provider "aws" {
-  region = "us-east-2"
+  region = var.region
 }
-
-variable "vpc-cidr" {
-  default= "10.0.0.0/16" 
-}
-
 # create vpc 
 resource "aws_vpc" "myvpc" {
   cidr_block = var.vpc-cidr
   tags = {
     Name = "my-vpc-01"
   }
-
 
 }
  # create public subnets
