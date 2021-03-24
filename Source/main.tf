@@ -7,45 +7,33 @@ resource "aws_vpc" "myvpc" {
   tags = {
     Name = "my-vpc-01"
   }
-
 }
  # create public subnets
-
-resource "aws_subnet" "public1" {
-  cidr_block = "10.0.1.0/24"
+resource "aws_subnet" "public" {
+  count = var.required_number_of_publicsubnets == null ? length(aws_availability_zones.available.names) :var.required_number_of_publicsubnets
+  cidr_block = cidrsunet(var.vpc-cidr, 8, count.index)
   vpc_id = aws_vpc.myvpc.id
-  availability_zone = "us-east-2a"
+
+  # Get the list of availability zones
+  data aws_availability_zones "available"{
+    state = available
+  }
+  availability_zone = aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
   tags = {
-    Name = "Public-Subnet-1"
+    Name = "Public-Subnet"[count.index+1]
   }
 }
 
-resource "aws_subnet" "public2" {
-  cidr_block = "10.0.3.0/24"
-  vpc_id = aws_vpc.myvpc.id
-  availability_zone = "us-east-2b"
-  map_public_ip_on_launch = true
-  tags= {
-    Name = "Public-Subnet-2"
-  }
-}
 
 # create private subnets
-resource "aws_subnet" "private1" {
-  cidr_block = "10.0.2.0/24"
+resource "aws_subnet" "private" {
+  count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.names) : var.required_number_of_privatesubnets
+  cidr_block = cidrsubnet(var.vpc-cidr, 8, count.index + 2)
   vpc_id = aws_vpc.myvpc.id
-  availability_zone = "us-east-2a"
+  availability_zone = data.aws_availability_zones.names[count.index]
   tags= {
-    Name = "Private-Subnet-1"
-  }
-}
-resource "aws_subnet" "private2" {
-  cidr_block = "10.0.4.0/24"
-  vpc_id = aws_vpc.myvpc.id
-  availability_zone = "us-east-2b"
-  tags= {
-    Name = "Private-Subnet-2"
+    Name = "Private-Subnet"[count.index +1]
   }
 }
 
@@ -60,7 +48,7 @@ tags = {
 # create the NAT gateway
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.elasticip.id
-  subnet_id = aws_subnet.public1.id
+  subnet_id = aws_subnet.public.*.id
 tags = {
   Name= "NAT-gateway"
 }
@@ -80,14 +68,10 @@ resource "aws_route_table" "public" {
 # route table association with Public Subnets
 
 resource "aws_route_table_association" "publicsubnet1" {
-  subnet_id = aws_subnet.public1.id
+  subnet_id = aws_subnet.public.*.id
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "publicsubnet2" {
-  subnet_id = aws_subnet.public2.id
-  route_table_id = aws_route_table.public.id
-}
 # create private route table
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.myvpc.id
@@ -102,11 +86,7 @@ resource "aws_route_table" "private" {
 }
 # route table association with Private Subnets
 resource "aws_route_table_association" "privatesubnet1" {
-  subnet_id = aws_subnet.private1.id
-  route_table_id = aws_route_table.private.id
-}
-resource "aws_route_table_association" "privatesubnet2" {
-  subnet_id = aws_subnet.private2.id
+  subnet_id = aws_subnet.private.*.id
   route_table_id = aws_route_table.private.id
 }
 # create  security groups
@@ -142,7 +122,7 @@ resource "aws_security_group" "bastiontraffic" {
     from_port = 22
     to_port = 22
     protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["71.173.193.5/32"]
   }
   egress {
     from_port = 0
@@ -160,28 +140,21 @@ resource "aws_security_group" "webtraffic" {
   name = "Allow Traffic from Load Balancer"
   vpc_id = aws_vpc.myvpc.id
 
-  ingress {
-   from_port = 80
-   to_port = 80
+  dynamic "ingress" {
+  iterator = port
+  for_each = var.ingressrules
+  content {
+   from_port = port.value
+   to_port = port.value
    protocol = "tcp"
-  security_groups = [aws_security_group.sg.id]
-
+  security_groups = [aws_security_group.bastiontraffic.id, aws_security_group.sg.id]
   }
-
-# allow port 22 from bastion host
-ingress {
-   from_port = 22
-   to_port = 22
-   protocol = "tcp"
-  security_groups = [aws_security_group.bastiontraffic.id]
-
   }
   egress{
     from_port = 0
     to_port = 0
     protocol= "-1"
     cidr_blocks = ["0.0.0.0/0"]
-
 
 }
 tags = {
@@ -223,11 +196,13 @@ tags = {
 
 # create ec2-instances
 # create instances for Bastion Host
+# lookup(map, key, [default]) - Performs a dynamic lookup into a map variable based on the region
 resource "aws_instance" "bastion" {
-  ami = "ami-08962a4068733a2b6"
-  instance_type= "t2.micro"
-  subnet_id = aws_subnet.public1.id
-  availability_zone = "us-east-2a"
+  count = var.required_number_of_publicsubnets == null ? length(aws_availability_zones.available.names) :var.required_number_of_publicsubnets
+  ami = lookup(var.ec2_ami, var.region)
+  instance_type= var.instance_type
+  subnet_id = element(aws_subnet.public.*.id, count.index)
+  # availability_zone = "us-east-2a"
   security_groups = [aws_security_group.bastiontraffic.id]
   key_name = aws_key_pair.keypair.key_name
   tags = {
@@ -235,52 +210,33 @@ resource "aws_instance" "bastion" {
   }
 }
 
-resource "aws_instance" "web1" {
-  ami = "ami-08962a4068733a2b6"
-  instance_type= "t2.micro"
-  subnet_id = aws_subnet.public1.id
-  availability_zone = "us-east-2a"
+resource "aws_instance" "web" {
+  count = var.required_number_of_publicsubnets == null ? length(aws_availability_zones.available.names) :var.required_number_of_publicsubnets
+  ami = lookup(var.ec2_ami, var.region)
+  instance_type= var.instance_type
+  subnet_id = element(aws_subnet.public.*.id, count.index)
+  # availability_zone = "us-east-2a"
   security_groups = [aws_security_group.webtraffic.id]
   user_data = file("script.sh")  # file function reads the scripts from the script.sh file 
   key_name = aws_key_pair.keypair.key_name
   tags = {
-    Name = "Webserver-1"
+    Name = "Webserver"[count.index + 1]
   }
 }
-  resource "aws_instance" "web2" {
-  ami = "ami-08962a4068733a2b6"
-  instance_type= "t2.micro"
-  subnet_id = aws_subnet.public2.id
+
+ resource "aws_instance" "db" {
+  count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.names) : var.required_number_of_privatesubnets
+  ami = lookup(var.ec2_ami, var.region)
+  instance_type= var.instance_type
   key_name = aws_key_pair.keypair.key_name
-  availability_zone = "us-east-2b"
-  security_groups = [aws_security_group.webtraffic.id]
-  user_data = file("data.sh")
-  tags = {
-    Name = "Webserver-2"
-  }
-  }
- resource "aws_instance" "db1" {
-  ami = "ami-08962a4068733a2b6"
-  instance_type= "t2.micro"
-  key_name = aws_key_pair.keypair.key_name
-  subnet_id = aws_subnet.private1.id
-  availability_zone = "us-east-2a"
+  subnet_id = element(aws_subnet.private.*.id, count.index)
+  # availability_zone = "us-east-2a"
   security_groups = [aws_security_group.webtraffic.id]
   tags = {
-    Name = "DB-Server-1"
+    Name = "DB-Server"[count.index +1]
   }
  }
- resource "aws_instance" "db2" {
-  ami = "ami-08962a4068733a2b6"
-  instance_type= "t2.micro"
-  subnet_id = aws_subnet.private2.id
-  key_name = aws_key_pair.keypair.key_name
-  availability_zone = "us-east-2b"
-  security_groups = [aws_security_group.webtraffic.id]
-  tags = {
-    Name = "DB-Server-2"
-  }
- }
+
 # create  Elastic IP
  resource "aws_eip" "elasticip" {
    tags = {
@@ -323,7 +279,7 @@ resource "aws_lb" "loadbalancer" {
   name = "ALB"
   internal = false
   load_balancer_type = "application"
-  subnets = [aws_subnet.public1.id, aws_subnet.public2.id]
+  subnets = [aws_subnet.public.*.id]
   security_groups = [aws_security_group.sg.id]
   ip_address_type = "ipv4"
  tags = {
