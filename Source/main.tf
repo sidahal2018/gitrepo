@@ -2,10 +2,6 @@
 data "aws_availability_zones" "available" {
 state = "available"
 }
-
-provider "aws" {
-  region = var.region
-}
 # create vpc 
 resource "aws_vpc" "myvpc" {
   cidr_block = var.vpc-cidr
@@ -44,7 +40,8 @@ tags = {
 # create the NAT gateway
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.elasticip.id
-  subnet_id = aws_subnet.public.*.id
+  subnet_id = element(aws_subnet.public.*.id, 0)
+
 tags = {
   Name= "NAT-gateway"
 }
@@ -62,7 +59,7 @@ resource "aws_route_table" "public" {
 }
 # route table association with Public Subnets
 resource "aws_route_table_association" "publicsubnet1" {
-  subnet_id = aws_subnet.public.*.id
+  subnet_id = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 # create private route table
@@ -77,9 +74,9 @@ resource "aws_route_table" "private" {
   }
 }
 # route table association with Private Subnets
-resource "aws_route_table_association" "privatesubnet1" {
-  subnet_id = aws_subnet.private.*.id
-  route_table_id = aws_route_table.private.id
+resource "aws_route_table_association" "privatesubnet" {
+  subnet_id = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private[count.index].id
 }
 # create  security groups
 # ALB security group
@@ -112,7 +109,7 @@ resource "aws_security_group" "bastiontraffic" {
     from_port = 22
     to_port = 22
     protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["71.173.193.5/32"]
   }
   egress {
     from_port = 0
@@ -144,7 +141,6 @@ resource "aws_security_group" "webtraffic" {
     to_port = 0
     protocol= "-1"
     cidr_blocks = ["0.0.0.0/0"]
-
 }
 tags = {
   Name= "Webserver-Security-Group"
@@ -245,39 +241,39 @@ resource "aws_lb_target_group" "target_group" {
   target_type = var.target_type
   vpc_id = aws_vpc.myvpc.id
 }
-
 resource "aws_lb" "loadbalancer" {
   name = "ALB"
   internal = false
   load_balancer_type = var.load_balancer_type
-  subnets = [aws_subnet.public.*.id]
+  subnets = [aws_subnet.public[0].id, aws_subnet.public[1].id]
   security_groups = [aws_security_group.sg.id]
   ip_address_type = var.ip_address_type
  tags = {
    name = "Application-Load-Balancer"
  }
 }
-
 resource "aws_lb_target_group_attachment" "attach_instances" {
+  count = length(aws_instance.web)
   target_group_arn = element(aws_lb_target_group.target_group.*.arn,count.index)
-  target_id = element(aws_instance.web.*.id, count.index)
+  target_id = aws_instance.web[count.index].id
   port = 80
 }
-
 resource "aws_lb_listener" "mylistener1" {
+  count = length(aws_lb_target_group.target_group)
   load_balancer_arn = aws_lb.loadbalancer.arn
    port = 80
    protocol = "HTTP"
    default_action {
     type = "forward"
-    target_group_arn = aws_lb_target_group.target_group[count.index]
+  target_group_arn = element(aws_lb_target_group.target_group.*.arn,count.index)
+
    }
 }
 resource "aws_alb_listener_rule" "listener_path_based" {
   listener_arn = aws_lb_listener.mylistener1.arn
   action {    
   type = "forward"    
-  target_group_arn = aws_lb_target_group.target1.arn
+  target_group_arn = aws_lb_target_group.target_group.*.arn
     }   
  condition {
     path_pattern {
@@ -289,7 +285,7 @@ resource "aws_alb_listener_rule" "listener_path_data" {
   listener_arn = aws_lb_listener.mylistener1.arn
   action {    
   type = "forward"    
-  target_group_arn = aws_lb_target_group.target2.arn
+  target_group_arn = aws_lb_target_group.target_group.*.arn
     }   
  condition {
     path_pattern {
