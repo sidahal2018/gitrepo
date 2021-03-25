@@ -41,39 +41,34 @@ Map and Lookup. (EC2 Section)
 Map is a data structure type that can be set as a default type for variables. It is presented as key and value pairs
 
 
-variable "mymap" { 
-
- type = "map"
- default= {
+      variable "mymap" { 
+      type = "map"
+      default= {
  
- key1 = "value1"
-key2 = "value2" 
+       key1 = "value1"
+      key2 = "value2" 
  
- }
+       }
 
-}
--------------------------------------------------------------
-variable "images" {
-    type = "map"
-    default = {
-        us-east-1 = "image-1234"
-        us-west-2 = "image-23834"
-    }
-}
----------------------------------------------
-condition ? true_val : false_val
+        }
 
-
-condition ? true_val : false_val
 
 ------------------------------------------------------------------------
 Just use, subnet_id for ec2 creation. Terraform will pick the VPC from there.
 
-----------------------------------
+--------------------------------------------------------------
+`cidrsubnet`: This function works like an algorithm to dynamically create a subnet cidr per AZ. Regardless of the number of subnets created, it takes care of the cidr value per subnet.
 
+Its parameters are cidrsubnet(prefix, newbits, netnum)
+
+The prefix parameter must be given in CIDR notation. Just as the VPC.
+The newbits parameter is the number of additional bits with which to extend the prefix. For example, if given a prefix ending in /16 and a newbits value of 4, the resulting subnet address will have length /20
+The netnum parameter is a whole number that can be represented as a binary integer with no more than newbits binary digits, which will be used to populate the additional bits added to the prefix
+
+-------------------------------------------------------------
 element retrieves a single element from a list.
 
-element(list, index)
+`element(list, index)`
 
 
 
