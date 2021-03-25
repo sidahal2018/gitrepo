@@ -34,6 +34,48 @@ Your ALB DNS name should resolve to different contents/folders and hence will do
 
 Your ALB DNS name should resolve to different contents/folders and hence will do the path-based routing, as you configured manually in AWS. e.g. <ALB-DNS-name>/images or <ALB-DNS-name>/data
 
-We can ubnet_id for ec2 creation. Terraform will pick the VPC from there.
+We can subnet_id for ec2 creation. Terraform will pick the VPC from there.
+
+Map and Lookup. (EC2 Section)
+-- Remeber, every work you do, always endeavour to make it dynamic to accomodate future changes. The AMI we have is only available in the region in we created it. But what if we change the region later, and want to dynamically pick up AMI IDs based on the available AMIs in that region? This is when we will introduce Map and Lookup
+Map is a data structure type that can be set as a default type for variables. It is presented as key and value pairs
+
+
+variable "mymap" { 
+
+ type = "map"
+ default= {
+ 
+ key1 = "value1"
+key2 = "value2" 
+ 
+ }
+
+}
+-------------------------------------------------------------
+variable "images" {
+    type = "map"
+    default = {
+        us-east-1 = "image-1234"
+        us-west-2 = "image-23834"
+    }
+}
+---------------------------------------------
+condition ? true_val : false_val
+
+
+condition ? true_val : false_val
+
+------------------------------------------------------------------------
+Just use, subnet_id for ec2 creation. Terraform will pick the VPC from there.
+
+----------------------------------
+
+element retrieves a single element from a list.
+
+element(list, index)
+
+
+
 
 Terraform documenation: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener_rule

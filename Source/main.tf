@@ -1,3 +1,8 @@
+# Get list of availability zones
+data "aws_availability_zones" "available" {
+state = "available"
+}
+
 provider "aws" {
   region = var.region
 }
@@ -10,33 +15,25 @@ resource "aws_vpc" "myvpc" {
 }
  # create public subnets
 resource "aws_subnet" "public" {
-  count = var.required_number_of_publicsubnets == null ? length(aws_availability_zones.available.names) :var.required_number_of_publicsubnets
-  cidr_block = cidrsunet(var.vpc-cidr, 8, count.index)
+  count = var.required_number_of_publicsubnets == null ? length(data.aws_availability_zones.available.names) :var.required_number_of_publicsubnets
+  cidr_block = cidrsubnet(var.vpc-cidr, 8, count.index)
   vpc_id = aws_vpc.myvpc.id
-
-  # Get the list of availability zones
-  data aws_availability_zones "available"{
-    state = available
-  }
-  availability_zone = aws_availability_zones.available.names[count.index]
+  availability_zone = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
   tags = {
-    Name = "Public-Subnet"[count.index+1]
+    Name = format("PrivateSubnet-%s", count.index)
   }
 }
-
-
 # create private subnets
 resource "aws_subnet" "private" {
-  count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.names) : var.required_number_of_privatesubnets
+  count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.available.names) : var.required_number_of_privatesubnets
   cidr_block = cidrsubnet(var.vpc-cidr, 8, count.index + 2)
   vpc_id = aws_vpc.myvpc.id
-  availability_zone = data.aws_availability_zones.names[count.index]
+  availability_zone = data.aws_availability_zones.available.names[count.index]
   tags= {
-    Name = "Private-Subnet"[count.index +1]
+    Name = format("PrivateSubnet-%s", count.index )
   }
 }
-
 # create internet gateway
 resource "aws_internet_gateway" "myigw" {
 vpc_id = aws_vpc.myvpc.id
@@ -44,7 +41,6 @@ tags = {
   Name = "my-internet-get-way"
 }
 }
-
 # create the NAT gateway
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.elasticip.id
@@ -54,7 +50,6 @@ tags = {
 }
 }
 # create route public table
-
 resource "aws_route_table" "public" {
  vpc_id = aws_vpc.myvpc.id
  route {
@@ -66,12 +61,10 @@ resource "aws_route_table" "public" {
  }
 }
 # route table association with Public Subnets
-
 resource "aws_route_table_association" "publicsubnet1" {
   subnet_id = aws_subnet.public.*.id
   route_table_id = aws_route_table.public.id
 }
-
 # create private route table
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.myvpc.id
@@ -82,7 +75,6 @@ resource "aws_route_table" "private" {
   tags = {
     Name = "Private-Route-Table"
   }
-
 }
 # route table association with Private Subnets
 resource "aws_route_table_association" "privatesubnet1" {
@@ -100,14 +92,12 @@ resource "aws_security_group" "sg" {
    to_port = 80
    protocol = "tcp"
    cidr_blocks = ["0.0.0.0/0"]
-
   }
   egress{
     from_port = 0
     to_port = 0
     protocol= "-1"
     cidr_blocks = ["0.0.0.0/0"]
-
   }
   tags = {
     Name = "Load-Balancer-Security-Group"
@@ -122,14 +112,13 @@ resource "aws_security_group" "bastiontraffic" {
     from_port = 22
     to_port = 22
     protocol = "tcp"
-    cidr_blocks = ["71.173.193.5/32"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
   egress {
     from_port = 0
     to_port = 0
     protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-
   }
   tags = {
     Name = "Bastion-Security-Group"
@@ -193,12 +182,11 @@ tags = {
   public_key = file("c:/Users/Siki/.ssh/id_rsa.pub")
 
 }
-
 # create ec2-instances
 # create instances for Bastion Host
 # lookup(map, key, [default]) - Performs a dynamic lookup into a map variable based on the region
 resource "aws_instance" "bastion" {
-  count = var.required_number_of_publicsubnets == null ? length(aws_availability_zones.available.names) :var.required_number_of_publicsubnets
+  count = var.required_number_of_publicsubnets == null ? length(data.aws_availability_zones.available.names) :var.required_number_of_publicsubnets
   ami = lookup(var.ec2_ami, var.region)
   instance_type= var.instance_type
   subnet_id = element(aws_subnet.public.*.id, count.index)
@@ -211,7 +199,7 @@ resource "aws_instance" "bastion" {
 }
 
 resource "aws_instance" "web" {
-  count = var.required_number_of_publicsubnets == null ? length(aws_availability_zones.available.names) :var.required_number_of_publicsubnets
+  count = var.required_number_of_publicsubnets == null ? length(data.aws_availability_zones.available.names) :var.required_number_of_publicsubnets
   ami = lookup(var.ec2_ami, var.region)
   instance_type= var.instance_type
   subnet_id = element(aws_subnet.public.*.id, count.index)
@@ -220,12 +208,11 @@ resource "aws_instance" "web" {
   user_data = file("script.sh")  # file function reads the scripts from the script.sh file 
   key_name = aws_key_pair.keypair.key_name
   tags = {
-    Name = "Webserver"[count.index + 1]
+    Name = "Webserver+[count.index + 1]"
   }
 }
-
  resource "aws_instance" "db" {
-  count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.names) : var.required_number_of_privatesubnets
+  count = var.required_number_of_privatesubnets == null ? length(data.aws_availability_zones.available.names) : var.required_number_of_privatesubnets
   ami = lookup(var.ec2_ami, var.region)
   instance_type= var.instance_type
   key_name = aws_key_pair.keypair.key_name
@@ -233,81 +220,58 @@ resource "aws_instance" "web" {
   # availability_zone = "us-east-2a"
   security_groups = [aws_security_group.webtraffic.id]
   tags = {
-    Name = "DB-Server"[count.index +1]
+    Name = "DB-Server+ [count.index + 1]"
   }
  }
-
 # create  Elastic IP
  resource "aws_eip" "elasticip" {
    tags = {
      Name = "ElasticIP"
    }
-  
 }
-resource "aws_lb_target_group" "target1" {
+resource "aws_lb_target_group" "target_group" {
+  count = var.required_number_of_target_group
   health_check {
     interval = 10
-    path = "/images/index.html"
-    protocol = "HTTP"
-    timeout = 5 
-    healthy_threshold = 5
-    unhealthy_threshold = 2
+    # path = element(var.health_check_path.*.id, count.index)
+    protocol = var.target_group_protocol
+    timeout = var.health_check_timeout
+    healthy_threshold = var.health_check_healthy_threshold
+    unhealthy_threshold = var.health_check_unhealthy_threshold
   }
   name = "webserver-target-group-1"
-  port = 80
-  protocol = "HTTP"
-  target_type = "instance"
+  port = var.target_group_port
+  protocol = var.target_group_protocol
+  target_type = var.target_type
   vpc_id = aws_vpc.myvpc.id
 }
 
-resource "aws_lb_target_group" "target2" {
-  health_check {
-    interval = 10
-    path = "/data/index.html"
-    protocol = "HTTP"
-    timeout = 5 
-    healthy_threshold = 5
-    unhealthy_threshold = 2
-  }
-  name = "webserver-target-group-2"
-  port = 80
-  protocol = "HTTP"
-  target_type = "instance"
-  vpc_id = aws_vpc.myvpc.id
-}
 resource "aws_lb" "loadbalancer" {
   name = "ALB"
   internal = false
-  load_balancer_type = "application"
+  load_balancer_type = var.load_balancer_type
   subnets = [aws_subnet.public.*.id]
   security_groups = [aws_security_group.sg.id]
-  ip_address_type = "ipv4"
+  ip_address_type = var.ip_address_type
  tags = {
    name = "Application-Load-Balancer"
  }
 }
 
-resource "aws_lb_target_group_attachment" "ec2-attach1" {
-  target_group_arn = aws_lb_target_group.target1.arn
-  target_id = aws_instance.web1.id
+resource "aws_lb_target_group_attachment" "attach_instances" {
+  target_group_arn = element(aws_lb_target_group.target_group.*.arn,count.index)
+  target_id = element(aws_instance.web.*.id, count.index)
   port = 80
 }
 
-resource "aws_lb_target_group_attachment" "ec2-attach2" {
-  target_group_arn = aws_lb_target_group.target2.arn
-  target_id = aws_instance.web2.id
-  port = 80
-}
 resource "aws_lb_listener" "mylistener1" {
   load_balancer_arn = aws_lb.loadbalancer.arn
    port = 80
    protocol = "HTTP"
-
    default_action {
     type = "forward"
-    target_group_arn = aws_lb_target_group.target1.arn
+    target_group_arn = aws_lb_target_group.target_group[count.index]
    }
-
 }
 resource "aws_alb_listener_rule" "listener_path_based" {
   listener_arn = aws_lb_listener.mylistener1.arn
@@ -321,7 +285,6 @@ resource "aws_alb_listener_rule" "listener_path_based" {
     }
   }
 }
-
 resource "aws_alb_listener_rule" "listener_path_data" {
   listener_arn = aws_lb_listener.mylistener1.arn
   action {    

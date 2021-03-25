@@ -30,3 +30,48 @@ variable "ec2_ami" {
   }
 }
 
+variable "required_number_of_target_group"{
+  default = 2
+}
+variable "health_check_interval" {
+  default = "10"
+
+}
+variable "health_check_path" {
+  type = list(string)
+  default = ["/images/index.html", "/data/index.html"]
+
+}
+# variable "health_check_path2" {
+#   default = "/data/index.html"
+
+# }
+
+variable "target_group_protocol" {
+  default     = "HTTP"
+}
+variable "health_check_timeout" {
+  default = "5"
+  
+}
+variable "health_check_healthy_threshold" {
+  default     = "5"
+}
+variable "health_check_unhealthy_threshold" {
+  default     = "2"
+  }
+
+variable "target_group_port" {
+  default = "80"
+}
+
+variable "target_type" {
+  default = "instance"
+}
+
+variable "ip_address_type" {
+  default  = "ipv4"
+}
+variable "load_balancer_type" {
+  default  = "application"
+}
