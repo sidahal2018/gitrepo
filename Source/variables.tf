@@ -29,7 +29,6 @@ variable "ingressrules" {
   type = list(number)
   default = [22,80]
 }
-
 variable "egressrules" {
   type = list(number)
   default = [0]
@@ -43,25 +42,23 @@ variable "cidr_all_traffic" {
 variable "allow_myip" {
   default= ["71.173.193.5/32"]
 }
-
 variable "egress_cidr_blocks" {
   default = ["0.0.0.0/0"]
-
 }
 variable "ingress_rules_lb"{
-	default =  [{
-		 from_port   = 80
+default =  [{
+      from_port  = 80
      to_port     = 80
      protocol    = "tcp"
-		description = "Port 80"
+     description = "Port 80"
 	}]
 }
 variable "ingress_rules_bastion"{
-	default =  [{
-		 from_port   = 22
-     to_port     = 22
-     protocol    = "tcp"
-		description = "Port 22"
+default =  [{
+     from_port  = 22
+     to_port    = 22
+     protocol   = "tcp"
+     description = "Port 22"
 	}]
 }
 variable "instance_type" {
@@ -96,11 +93,9 @@ variable "health_check_healthy_threshold" {
 variable "health_check_unhealthy_threshold" {
   default     = "2"
   }
-
 variable "target_group_port" {
   default = "80"
 }
-
 variable "target_type" {
   default = "instance"
 }
@@ -110,7 +105,6 @@ variable "ip_address_type" {
 variable "load_balancer_type" {
   default  = "application"
 }
-
 variable "sg-protocol" {
   default = "tcp"
 }
