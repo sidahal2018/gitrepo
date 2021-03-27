@@ -4,15 +4,13 @@ state = "available"
 provider "aws" {
   region = var.region
 }
-# create vpc 
-resource "aws_vpc" "myvpc" {
+resource "aws_vpc" "myvpc" {              # create vpc 
   cidr_block = var.vpc-cidr
   tags = {
     Name = var.vpc_name
   }
 }
- # create public subnets
-resource "aws_subnet" "public" {
+resource "aws_subnet" "public" {           # create public subnets
   count = var.required_number_of_publicsubnets == null ? length(data.aws_availability_zones.available.names) :var.required_number_of_publicsubnets
   cidr_block = cidrsubnet(var.vpc-cidr, 8, count.index)
   vpc_id = aws_vpc.myvpc.id
@@ -22,8 +20,7 @@ resource "aws_subnet" "public" {
     Name = "publicsubnet-${count.index+1}"
   }
 }
-# create private subnets
-resource "aws_subnet" "private" {
+resource "aws_subnet" "private" {                # create private subnets
   count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.available.names) : var.required_number_of_privatesubnets
   cidr_block = cidrsubnet(var.vpc-cidr, 8, count.index + 2)
   vpc_id = aws_vpc.myvpc.id
@@ -32,60 +29,53 @@ resource "aws_subnet" "private" {
     Name = "privatesubnet-${count.index+1}"
   }
 }
-# create internet gateway
-resource "aws_internet_gateway" "myigw" {
-vpc_id = aws_vpc.myvpc.id
+resource "aws_internet_gateway" "myigw" {             # create internet gateway
+vpc_id = aws_vpc.myvpc.id   
 tags = {
   Name = var.internet_gateway_name
 }
 }
-# create the NAT gateway
-resource "aws_nat_gateway" "nat" {
+resource "aws_nat_gateway" "nat" {                      # create the NAT gateway
   allocation_id = aws_eip.elasticip.id
   subnet_id = element(aws_subnet.public.*.id, 0)
 tags = {
   Name= var.nat_gateway_name
 }
 }
-# create route public table
-resource "aws_route_table" "public" {
+resource "aws_route_table" "public" {                    # create route public table
  vpc_id = aws_vpc.myvpc.id
  route {
-  cidr_block = var.cidr_all_traffic
+  cidr_block = var.cidr_route-table
   gateway_id = aws_internet_gateway.myigw.id
  }
  tags = {
    Name = var.public_route_table_name
  }
 }
-# route table association with Public Subnets
-resource "aws_route_table_association" "publicsubnet" {
+resource "aws_route_table_association" "publicsubnet" {                  # route table association with Public Subnets
   count = var.required_number_of_publicsubnets==null ? length(data.aws_availability_zones.available.names) : var.required_number_of_publicsubnets
   subnet_id = element(aws_subnet.public.*.id,count.index)
   route_table_id = aws_route_table.public.id
 }
-# create private route table
-resource "aws_route_table" "private" {
+resource "aws_route_table" "private" {                         # create private route table
   vpc_id = aws_vpc.myvpc.id
   route {
-    cidr_block = var.cidr_all_traffic
+    cidr_block = var.cidr_route-table
     nat_gateway_id = aws_nat_gateway.nat.id
   }
   tags = {
     Name = var.private_route_table_name
   }
 }
-# route table association with Private Subnets
-resource "aws_route_table_association" "privatesubnet" {
+resource "aws_route_table_association" "privatesubnet" {            # route table association with Private Subnets
   count = var.required_number_of_privatesubnets==null ? length(data.aws_availability_zones.available.names) : var.required_number_of_privatesubnets
   subnet_id = element(aws_subnet.private.*.id,count.index)
   route_table_id = aws_route_table.private.id
 }
-# create  security groups
 resource "aws_security_group" "lb_security_groups" {
   vpc_id = aws_vpc.myvpc.id
   dynamic "ingress"{
-  for_each = var.ingress_rules
+  for_each = var.ingress_rules_lb
   content {
   from_port         = ingress.value.from_port
   to_port           = ingress.value.to_port
@@ -110,7 +100,7 @@ resource "aws_security_group" "lb_security_groups" {
 resource "aws_security_group" "bastion_security_groups" {
 vpc_id = aws_vpc.myvpc.id
   dynamic "ingress"{
-  for_each = var.ingress_rules
+  for_each = var.ingress_rules_bastion
   content {
   from_port         = ingress.value.from_port
   to_port           = ingress.value.to_port
@@ -132,8 +122,6 @@ vpc_id = aws_vpc.myvpc.id
     Name = var.bastion_sg_name
   }
 }
-
-# Web server security group
 resource "aws_security_group" "webtraffic" {
   vpc_id = aws_vpc.myvpc.id
   dynamic "ingress" {
@@ -160,10 +148,8 @@ resource "aws_security_group" "webtraffic" {
     Name = var.webserver_sg_name
   }
 }
-#  create Database security group
  resource "aws_security_group" "databasetraffic" {
    vpc_id = aws_vpc.myvpc.id
-
   dynamic "ingress" {
   iterator = port
   for_each = var.ingressrules
@@ -174,13 +160,14 @@ resource "aws_security_group" "webtraffic" {
     security_groups = [aws_security_group.webtraffic.id, aws_security_group.bastion_security_groups.id]
    }
   }
-    dynamic "egress"{
+   dynamic "egress"{
   iterator = port
   for_each = var.egressrules
     content {
     from_port = port.value
     to_port = port.value
     protocol= var.egress-rule-protocol
+    cidr_blocks = var.egress_cidr_blocks
     }
   }
   tags = {
@@ -191,9 +178,7 @@ resource "aws_security_group" "webtraffic" {
   key_name = var.my_key_pair_name
   public_key = file("c:/Users/Siki/.ssh/id_rsa.pub")
 }
-# create ec2-instance for Bastion Host
-# lookup(map, key, [default]) - Performs a dynamic lookup into a map variable based on the region
-resource "aws_instance" "bastion" {
+resource "aws_instance" "bastion" {  # lookup(map, key, [default]) - Performs a dynamic lookup into a map variable based on the region
   count = var.required_number_of_publicsubnets == null ? length(data.aws_availability_zones.available.names) :var.required_number_of_publicsubnets
   ami = lookup(var.ec2_ami, var.region)
   instance_type= var.instance_type
@@ -210,7 +195,7 @@ resource "aws_instance" "web" {
   instance_type= var.instance_type
   subnet_id = element(aws_subnet.public.*.id, count.index)
   security_groups = [aws_security_group.bastion_security_groups.id]
-  user_data = file("script.sh")  # file function reads the scripts from the script.sh file 
+  user_data = file("script.sh")                         # file function reads the scripts from the script.sh file 
   key_name = aws_key_pair.keypair.key_name
   tags = {
   Name = "Webserver-${count.index+1}"
@@ -227,8 +212,7 @@ resource "aws_instance" "web" {
   Name = "DBserver-${count.index+1}"
   }
  }
-# create  Elastic IP
- resource "aws_eip" "elasticip" {
+ resource "aws_eip" "elasticip" {                    # create  Elastic IP
    tags = {
      Name = var.Elastic_name
    }
@@ -248,7 +232,6 @@ resource "aws_lb_target_group" "target1" {
   target_type = var.target_type
   vpc_id = aws_vpc.myvpc.id
 }
-
 resource "aws_lb_target_group" "target2" {
   health_check {
     interval = var. health_check_interval
@@ -271,7 +254,7 @@ resource "aws_lb" "loadbalancer" {
   security_groups = [aws_security_group.lb_security_groups.id]
   ip_address_type = var.ip_address_type
  tags = {
-   name = var.lb_name
+   Name = var.lb_name
  }
 }
 resource "aws_lb_target_group_attachment" "ec2-attach1" {
