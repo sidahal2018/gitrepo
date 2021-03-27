@@ -84,54 +84,53 @@ resource "aws_route_table_association" "privatesubnet" {
 # create  security groups
 resource "aws_security_group" "lb_security_groups" {
   vpc_id = aws_vpc.myvpc.id
+  dynamic "ingress"{
+  for_each = var.ingress_rules
+  content {
+  from_port         = ingress.value.from_port
+  to_port           = ingress.value.to_port
+  protocol          = ingress.value.protocol
+  description       = ingress.value.description
+  cidr_blocks       = var.cidr_all_traffic
+  }
+  }
+   dynamic "egress"{
+  for_each = var.egressrules
+    content {
+    from_port = egress.value
+    to_port = egress.value
+    protocol= var.egress-rule-protocol
+    cidr_blocks = var.egress_cidr_blocks
+    }
+   }
   tags ={
     Name = var.lb_sg_name
   }
 }
-resource "aws_security_group_rule" "ingress_rules" {
-count = length(var.ingress_rules)
-  type              = var.ingress_rules[count.index].type
-  from_port         = var.ingress_rules[count.index].from_port
-  to_port           = var.ingress_rules[count.index].to_port
-  protocol          = var.ingress_rules[count.index].protocol
-  cidr_blocks       = [var.ingress_rules[count.index].cidr_block]
-  description       = var.ingress_rules[count.index].description
-  security_group_id = aws_security_group.lb_security_groups.id
-}
-
-resource "aws_security_group_rule" "allow_all" {
-  count = length(var.egress_rules)
-  type             = var.egress_rules[count.index].type
-  to_port           = var.egress_rules[count.index].to_port
-  protocol          = var.egress_rules[count.index].protocol
-  from_port         = var.egress_rules[count.index].from_port
-  security_group_id = aws_security_group.lb_security_groups.id
-}
-
 resource "aws_security_group" "bastion_security_groups" {
-  vpc_id = aws_vpc.myvpc.id
+vpc_id = aws_vpc.myvpc.id
+  dynamic "ingress"{
+  for_each = var.ingress_rules
+  content {
+  from_port         = ingress.value.from_port
+  to_port           = ingress.value.to_port
+  protocol          = ingress.value.protocol
+  description       = ingress.value.description
+  cidr_blocks       = var.allow_myip
+  }
+  }
+   dynamic "egress"{
+  for_each = var.egressrules
+    content {
+    from_port = egress.value
+    to_port = egress.value
+    protocol= var.egress-rule-protocol
+    cidr_blocks = var.egress_cidr_blocks
+    }
+  }
   tags ={
     Name = var.bastion_sg_name
   }
-}
-# sg- rules for bastion host
-resource "aws_security_group_rule" "ingress_rules_bastion" {
-count = length(var.ingress_rules)
-  type              = var.ingress_rules_bastion_host[count.index].type
-  from_port         = var.ingress_rules_bastion_host[count.index].from_port
-  to_port           = var.ingress_rules_bastion_host[count.index].to_port
-  protocol          = var.ingress_rules_bastion_host[count.index].protocol
-  cidr_blocks       = [var.ingress_rules_bastion_host[count.index].cidr_block]
-  description       = var.ingress_rules_bastion_host[count.index].description
-  security_group_id = aws_security_group.bastion_security_groups.id
-}
-resource "aws_security_group_rule" "allow_all_bastion" {
-  count = length(var.egress_rules)
-  type              = var.egress_rules[count.index].type
-  to_port           = var.egress_rules[count.index].to_port
-  protocol          = var.egress_rules[count.index].protocol
-  from_port         = var.egress_rules[count.index].from_port
-  security_group_id = aws_security_group.lb_security_groups.id
 }
 
 # Web server security group

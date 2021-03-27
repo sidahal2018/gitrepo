@@ -15,9 +15,7 @@ variable "internet_gateway_name" {
 variable "nat_gateway_name" {
   default = "my-nat-get-way"
 }
-variable "cidr_all_traffic" {
-  default= "0.0.0.0/0"
-}
+
 
 variable "public_route_table_name" {
   default = "Public-RouteTable"
@@ -45,75 +43,27 @@ variable "egressrules" {
   type = list(number)
   default = [0]
 }
+variable "cidr_all_traffic" {
+  default= ["0.0.0.0/0"]
+}
+
+variable "allow_myip" {
+  default= ["71.173.193.5/32"]
+}
 
 variable "egress_cidr_blocks" {
-  default     = ["0.0.0.0/0"]
+  default = ["0.0.0.0/0"]
 
 }
 
-variable "ingress_rules" {
-    type = list(object({
-     type         = string 
-      from_port   = number
-      to_port     = number
-      protocol    = string
-      cidr_block  = string
-      description = string
-    }))
-    default = [
-        {
-          type       = "ingress"
-          from_port   = 80
-          to_port     = 80
-          protocol    = "tcp"
-          cidr_block  = "0.0.0.0/0"
-          description = "Load Balancer Security Group"
-        }
-    ]
+variable "ingress_rules"{
+	default =  [{
+		 from_port   = 80
+     to_port     = 80
+     protocol    = "tcp"
+		description = "Port 80"
+	}]
 }
-
-
-variable "egress_rules" {
-    type = list(object({
-      type        = string 
-      from_port   = number
-      to_port     = number
-      protocol    = string
-    }))
-    default = [
-        {
-          type       = "egress"
-          from_port   = 0
-          to_port     = 0
-          protocol    = "-1"
-         
-        }
-    ]
-}
-
-variable "ingress_rules_bastion_host" {
-    type = list(object({
-      type        = string 
-      from_port   = number
-      to_port     = number
-      protocol    = string
-      cidr_block  = string
-      description = string
-    }))
-    default = [
-        {
-          type       = "ingress"
-          from_port   = 22
-          to_port     = 22
-          protocol    = "tcp"
-          cidr_block  = "71.173.193.5/32"
-          description = "Bastion-SG"
-        }
-    ]
-}
-
-
-
 variable "instance_type" {
   default = "t2.micro"
   
@@ -140,8 +90,6 @@ variable "health_check_path" {
   default = ["/images/index.html", "/data/index.html"]
 
 }
-
-
 variable "target_group_protocol" {
   default     = "HTTP"
 }
@@ -175,14 +123,12 @@ variable "sg-protocol" {
   default = "tcp"
 }
 
-
 variable "egress-rule-protocol" {
   default = "-1"
 }
 variable "my_key_pair_name" {
  default =  "siki"
 }
-#####
 variable "bastion_sg_name" {
   default = "Bastion-SG"
 }
@@ -207,29 +153,24 @@ variable "target_web1_name" {
 variable "target_web2_name" {
   default = "Target-Grp-2"
 }
-######
 variable "lb_name" {
   default = "ALB"
 }
 variable "internal" {
   default = false
 }
-
 variable "listerner_port" {
   default = 80
 }
-
 variable "listerner_protocol" {
   default = "HTTP"
 }
 variable "listiner_type" {
   default = "forward"
 }
-
 variable "Listener_path_data" {
   default = ["/data/*"]
 }
-
 variable "Listener_path_images" {
   default = ["/images/*"]
 }
